@@ -530,7 +530,14 @@ class MonitorClassifier:
         idx = np.argpartition(d, self.k - 1)[: self.k]
         if d[idx].mean() > self.max_dist:
             return None, 0.0  # kalibrasyonda hiç görülmemiş bir bakış yönü
-        label, count = Counter(self.y[idx].tolist()).most_common(1)[0]
+        neighbor_labels = self.y[idx]
+        # Klavye sınıfının KESİN çoğunluk kazanmasını beklemek yetersizdi: ani/kısa
+        # bir klavye bakışında komşular karışık çıkıp klavye sinyali "kaybolabiliyordu"
+        # (bir monitöre yanlışlıkla geçiş olarak raporlandı). Komşuların önemli bir
+        # kısmı klavye sınıfındaysa, kesin çoğunluk olmasa bile temkinli davran.
+        if np.mean(neighbor_labels == KEYBOARD_LABEL) >= 0.25:
+            return None, 0.0
+        label, count = Counter(neighbor_labels.tolist()).most_common(1)[0]
         if label == KEYBOARD_LABEL:
             return None, 0.0  # klavyeye/ekran dışına bakılıyor, odak değişmesin
         return label, count / self.k
@@ -892,8 +899,11 @@ def run(args):
 
     ema = None
     history = deque(maxlen=args.smooth)
+    region_history = deque(maxlen=4)  # bölge (sol/sağ, üst/alt) sinyalini hafifçe yumuşat
     candidate, since = None, 0.0
-    last_switch = 0.0
+    last_switch = 0.0       # SADECE monitör değişimlerinde güncellenir
+    last_region_switch = 0.0  # SADECE aynı monitördeki pencere değişimlerinde güncellenir
+    REGION_COOLDOWN = 0.35   # monitör-içi pencere geçişleri için çok daha kısa bekleme
 
     try:
         while not state.quit:
@@ -906,6 +916,7 @@ def run(args):
                     print("Yeniden kalibrasyon iptal edildi, önceki kalibrasyon kullanılıyor.")
                 ema, candidate = None, None
                 history.clear()
+                region_history.clear()
 
             if state.paused:
                 time.sleep(0.1)
@@ -927,6 +938,7 @@ def run(args):
 
             if label is None or conf < args.min_conf:
                 candidate = None
+                region_history.clear()
                 continue
 
             history.append(label)
@@ -935,13 +947,12 @@ def run(args):
             now = time.monotonic()
             if label != candidate:
                 candidate, since = label, now
+                region_history.clear()  # yeni monitöre geçince eski bölge geçmişi geçersiz
                 continue
             if now - since < args.dwell:
                 continue
             if now - state.last_key < args.type_guard:
                 continue  # yazarken asla odak değiştirme
-            if now - last_switch < args.cooldown:
-                continue
 
             # Monitör listesini her seferinde taze al (handle'lar değişebilir)
             current = get_monitors()
@@ -952,10 +963,17 @@ def run(args):
 
             # Aynı monitörde birden fazla pencere varsa (ör. yan yana iki sekme),
             # bakılan bölgeye (sol/sağ, üst/alt) göre hangisi oldugunu da tahmin et.
+            # Tek kareye değil, son birkaç karenin çoğunluk oyuna bakılır (titremeyi azaltır).
             lr_label = lr_conf = tb_label = tb_conf = None
             region_clf = clf.regions.get(label) if clf.regions else None
             if region_clf is not None:
-                lr_label, lr_conf, tb_label, tb_conf = region_clf.predict(ema)
+                region_history.append(region_clf.predict(ema))
+                lr_votes = [r[0] for r in region_history if r[0] is not None and r[1] >= args.min_conf]
+                tb_votes = [r[2] for r in region_history if r[2] is not None and r[3] >= args.min_conf]
+                if lr_votes:
+                    lr_label, lr_conf = Counter(lr_votes).most_common(1)[0][0], 1.0
+                if tb_votes:
+                    tb_label, tb_conf = Counter(tb_votes).most_common(1)[0][0], 1.0
 
             hwnd = pick_window_for_region(
                 target, target_rect, lr_label, lr_conf, tb_label, tb_conf, args.min_conf
@@ -967,8 +985,22 @@ def run(args):
             if fg == hwnd:
                 continue  # zaten doğru pencerede
 
+            # Monitör değişiyorsa tam koruma (dwell zaten yukarıda sağlandı);
+            # aynı monitörde sadece pencere değişiyorsa çok daha kısa bir
+            # bekleme yeterli — ikisi AYRI zamanlayıcılarla takip edilir, biri
+            # diğerini "sıcak" tutup geciktirmesin diye (ör. hızlı sol/sağ
+            # geçişleri yapıp sonra başka monitöre bakınca o geçiş gecikmesin).
+            same_monitor_as_before = fg and monitor_of(fg) == target
+            if same_monitor_as_before:
+                if now - last_region_switch < REGION_COOLDOWN:
+                    continue
+                last_region_switch = now
+            else:
+                if now - last_switch < args.cooldown:
+                    continue
+                last_switch = now
+
             ok = force_foreground(hwnd)
-            last_switch = now
             print(f"[{time.strftime('%H:%M:%S')}] Monitör {label + 1} -> "
                   f"{window_title(hwnd)[:60]!r} {'OK' if ok else 'BAŞARISIZ'}")
     except KeyboardInterrupt:
