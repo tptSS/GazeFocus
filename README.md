@@ -103,7 +103,7 @@ Bu üç tuşa **aynı anda** basarsanız:
 
 | Tuşlar | Ne işe yarar |
 |---|---|
-| `Ctrl` + `Alt` + `G` | Programı duraklatır / tekrar basınca devam ettirir (yazarken rahatsız ediyorsa kullanın) |
+| `Ctrl` + `Alt` + `G` **veya** `Ctrl` + `Alt` + `F` | Programı duraklatır / tekrar basınca devam ettirir — **oyun oynarken** bu şekilde kapatıp açabilirsiniz, böylece yanlışlıkla diğer monitöre bakınca oyun küçülmez |
 | `Ctrl` + `Alt` + `C` | Kalibrasyonu baştan yapar (doğruluğu kötüyse bunu deneyin) |
 | `Ctrl` + `Alt` + `Q` | Programı tamamen kapatır |
 

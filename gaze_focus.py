@@ -5,9 +5,9 @@ Webcam + MediaPipe Face Mesh ile kafa yönü ve iris konumunu okur, kalibrasyonl
 hangi monitöre baktığını sınıflandırır, o monitördeki en üstteki pencereyi öne alır.
 
 Kısayollar:
-  Ctrl+Alt+G  -> Duraklat / devam
-  Ctrl+Alt+C  -> Yeniden kalibre et
-  Ctrl+Alt+Q  -> Çıkış
+  Ctrl+Alt+G veya Ctrl+Alt+F  -> Duraklat / devam (oyun vb. için hızlı kapat/aç)
+  Ctrl+Alt+C                 -> Yeniden kalibre et
+  Ctrl+Alt+Q                 -> Çıkış
 
 Kullanım:
   python gaze_focus.py                 # kayıtlı kalibrasyon varsa onu kullanır
@@ -521,6 +521,7 @@ def start_keyboard(state):
     keyboard.Listener(on_press=on_press).start()
     hk = keyboard.GlobalHotKeys({
         "<ctrl>+<alt>+g": toggle,
+        "<ctrl>+<alt>+f": toggle,  # oyun oynarken hızlı aç/kapat için G ile ayni islev
         "<ctrl>+<alt>+c": recal,
         "<ctrl>+<alt>+q": quit_,
     })
@@ -554,7 +555,7 @@ def run(args):
 
     state = State()
     start_keyboard(state)
-    print("Çalışıyor. Ctrl+Alt+G duraklat | Ctrl+Alt+C kalibre | Ctrl+Alt+Q çıkış")
+    print("Çalışıyor. Ctrl+Alt+G/F duraklat | Ctrl+Alt+C kalibre | Ctrl+Alt+Q çıkış")
 
     ema = None
     history = deque(maxlen=args.smooth)
