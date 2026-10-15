@@ -42,6 +42,19 @@ if not exist .venv (
     call .venv\Scripts\activate.bat
 )
 
+rem Bazi kurumsal/korumali bilgisayarlarda Windows Script Host (wscript.exe)
+rem guvenlik politikasiyla kapatilmis olabilir. Oyleyse gizli baslatmayi
+rem atlayip normal (gorunur) sekilde calistir - hic calismamaktan iyidir.
+where wscript >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo Not: wscript.exe bulunamadi/engellenmis olabilir ^(bazi kurumsal
+    echo bilgisayarlarda kapali olur^), program gorunur pencerede calisacak.
+    python gaze_focus.py %*
+    pause
+    exit /b 0
+)
+
 echo.
 echo Kurulum tamam. GazeFocus arka planda baslatiliyor, bu pencere kapanacak...
 
@@ -62,6 +75,18 @@ set "VBS=%TEMP%\gazefocus_baslat.vbs"
 )
 start "" wscript.exe "%VBS%"
 timeout /t 1 >nul
+
+rem wscript gizli baslatmayi gercekten tetikleyebildi mi kontrol et (bazen
+rem policy sessizce engeller, hata vermez). Etmediyse yine gorunur calistir.
+timeout /t 2 >nul
+tasklist /FI "IMAGENAME eq python.exe" | find /I "python.exe" >nul
+if errorlevel 1 (
+    echo.
+    echo Not: Arka plan baslatma calismadi ^(guvenlik politikasi engellemis
+    echo olabilir^), program gorunur pencerede calistiriliyor.
+    python gaze_focus.py %*
+    pause
+)
 exit /b 0
 
 :find_python
