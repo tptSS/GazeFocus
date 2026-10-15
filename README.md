@@ -9,14 +9,15 @@ kullanıp sık sık yanlış pencereye yazanlar için.
 - Windows 10/11
 - **En az 2 monitör** (tek monitörde anlamsız, program açılmaz)
 - Webcam
-- Python **3.10, 3.11 veya 3.12** — **3.13 desteklenmiyor** (mediapipe henüz uyumlu değil)
-  - Yoksa: <https://www.python.org/downloads/> adresinden Python 3.12 kurun,
-    kurulum ekranında **"Add python.exe to PATH"** kutusunu işaretlemeyi unutmayın.
+- İnternet bağlantısı (ilk kurulumda bağımlılıklar ve gerekirse Python indirilir)
+- Python **3.10, 3.11 veya 3.12** — **ama elle kurmanıza gerek yok**, `baslat.bat`
+  bilgisayarda uyumlu bir Python bulamazsa kendisi otomatik indirip kurar
+  (önce `winget`, o da yoksa python.org'dan doğrudan). (3.13 desteklenmiyor,
+  mediapipe henüz uyumlu değil; script bunu otomatik atlayıp 3.12 kurar.)
 
 ## Kurulum (yeni bir bilgisayarda)
 
-1. **Python'ı kurun** (yukarıdaki gereksinime bakın). Zaten kuruluysa atlayın.
-2. **Projeyi indirin**, iki yoldan biriyle:
+1. **Projeyi indirin**, iki yoldan biriyle:
    - Git ile:
      ```
      git clone https://github.com/tptSS/GazeFocus.git
@@ -24,19 +25,25 @@ kullanıp sık sık yanlış pencereye yazanlar için.
    - Git yoksa: GitHub sayfasında yeşil **Code > Download ZIP** butonuna basıp
      indirin, klasörü bir yere çıkartın (`.venv` ve kalibrasyon dosyası ilk
      çalıştırmada otomatik oluşur, repoda yok).
-3. Klasöre girip **`baslat.bat`** dosyasına çift tıklayın.
-   - İlk çalıştırmada otomatik bir sanal ortam (`.venv`) kurulur ve
-     `requirements.txt`'teki bağımlılıklar (mediapipe, opencv, vb.) indirilir —
-     internet bağlantısı gerekir, birkaç dakika sürebilir.
+2. Klasöre girip **`baslat.bat`** dosyasına çift tıklayın. Şunları otomatik yapar:
+   - Bilgisayarda uyumlu Python (3.10-3.12) yoksa, önce `winget` ile, o da
+     yoksa python.org'dan indirip **yönetici izni istemeden** (kullanıcı
+     bazlı) sessizce kurar.
+   - Bir sanal ortam (`.venv`) kurar ve `requirements.txt`'teki bağımlılıkları
+     (mediapipe, opencv, vb.) indirir — ilk seferde birkaç dakika sürebilir.
    - Kamera izni kapalıysa Windows'un kamera gizlilik ayarları otomatik açılır;
      izin verdiğiniz an program kalibrasyona otomatik geçer.
    - İlk kullanımda otomatik **kalibrasyon ekranı** açılır: her monitörde sırayla
      çıkan noktalara doğal şekilde bakmanız yeterli (ESC ile iptal edebilirsiniz).
-4. Kalibrasyon bitince program arka planda çalışmaya başlar; konsolu kapatmayın,
+3. Kalibrasyon bitince program arka planda çalışmaya başlar; konsolu kapatmayın,
    küçültüp bırakabilirsiniz.
 
 Sonraki çalıştırmalarda `baslat.bat`'a çift tıklamak yeterli — kurulum/kalibrasyon
 tekrar istenmez (monitör düzeni değişmediği sürece).
+
+Otomatik Python kurulumu başarısız olursa (örn. hem winget hem internet erişimi
+yoksa), script size <https://www.python.org/downloads/> adresinden Python 3.12'yi
+elle kurmanızı ve "Add python.exe to PATH" kutusunu işaretlemenizi söyler.
 
 ## Kısayollar
 
