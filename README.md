@@ -95,12 +95,34 @@ içinde klavye yazımı otomatik olarak o monitördeki pencereye geçecek.
 
 ## Sonraki kullanımlarda ne yapacaksınız?
 
-Kurulumu bir daha yapmanıza gerek yok. Bilgisayarı her açtığınızda sadece:
+Kurulumu bir daha yapmanıza gerek yok. İki seçeneğiniz var:
 
-- Aynı klasöre gidip **`baslat.bat`**'a çift tıklayın, hepsi bu kadar.
+- **Elle başlatma:** Aynı klasöre gidip **`baslat.bat`**'a çift tıklayın.
   (İsterseniz bu dosyaya sağ tıklayıp **"Kısayol oluştur"** diyip o kısayolu
   masaüstüne taşıyabilirsiniz, böylece her seferinde klasörü aramanıza gerek
   kalmaz.)
+- **Otomatik başlatma (önerilen):** Aşağıdaki "Windows açılışında otomatik
+  başlatma" bölümünü bir kez kurun, bundan sonra hiç dokunmanıza gerek
+  kalmaz — bilgisayarı her açtığınızda program kendiliğinden, görünmez
+  şekilde arka planda başlar.
+
+### Windows açılışında otomatik başlatma
+
+Kalibrasyonu en az bir kez **gerçekten tamamladıktan sonra** (yukarıdaki 4.
+adım), klasördeki **`otomatik_baslatmayi_ac.bat`** dosyasına çift tıklayın.
+Bundan sonra bilgisayarınızı her açtığınızda GazeFocus kendiliğinden, hiçbir
+pencere açmadan arka planda başlar — hiçbir şey yapmanıza gerek kalmaz.
+
+- Vazgeçmek isterseniz **`otomatik_baslatmayi_kapat.bat`**'a çift tıklayın;
+  program artık otomatik başlamaz (yine de `baslat.bat` ile elle
+  çalıştırabilirsiniz).
+- Otomatik başlarken bir sorun olursa (pencere görmediğiniz için fark
+  etmeyebilirsiniz), çıktılar şu dosyaya yazılır:
+  `%APPDATA%\GazeFocus\baslat.log`
+- **Önemli:** Henüz kalibrasyon yapmadıysanız `otomatik_baslatmayi_ac.bat`
+  bunu size söyleyip hiçbir şey yapmadan duracaktır — önce gerçekten
+  kalibrasyonu tamamlamanız gerekir, yoksa her açılışta beklenmedik şekilde
+  kalibrasyon ekranı karşınıza çıkar.
 
 ## Kullanırken bilmeniz gerekenler (kısayollar)
 

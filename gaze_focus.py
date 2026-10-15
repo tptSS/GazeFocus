@@ -32,17 +32,19 @@ from ctypes import wintypes
 
 
 def _setup_console_encoding():
-    """Pencere başlıkları Türkçe OEM kod sayfasında yazdırılamayınca program çöküyordu."""
+    """Pencere başlıkları Türkçe OEM kod sayfasında yazdırılamayınca program çöküyordu.
+    line_buffering=True: çıktı bir dosyaya yönlendirildiğinde (ör. otomatik başlatma
+    log dosyası) Python'ın print()'leri bellekte biriktirip geç yazmasını önler."""
     try:
         ctypes.windll.kernel32.SetConsoleOutputCP(65001)
     except Exception:
         pass
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
         except (AttributeError, OSError, ValueError):
             try:
-                stream.reconfigure(errors="replace")
+                stream.reconfigure(errors="replace", line_buffering=True)
             except Exception:
                 pass
 
