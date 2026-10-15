@@ -1,5 +1,9 @@
 # GazeFocus
 
+> ⚠️ **Sadece Windows (10/11) için çalışır.** Mac veya Linux'ta çalışmaz —
+> başka bir bilgisayara göstermeden önce o bilgisayarın Windows olduğundan
+> emin olun.
+
 Bilgisayara bağlı webcam'in izlediği yöne bakarak, hangi monitöre baktığınızı
 anlar ve fare kullanmadan klavye yazımını o monitördeki pencereye otomatik
 olarak yönlendirir. Laptop + harici monitör kullanıp sık sık yanlış pencereye
