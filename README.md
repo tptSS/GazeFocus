@@ -1,65 +1,153 @@
 # GazeFocus
 
-Webcam ile hangi monitöre baktığınızı algılayıp, fare kullanmadan klavye odağını o
-monitördeki pencereye otomatik veren bir Windows programı. Laptop + harici monitör
-kullanıp sık sık yanlış pencereye yazanlar için.
+Bilgisayara bağlı webcam'in izlediği yöne bakarak, hangi monitöre baktığınızı
+anlar ve fare kullanmadan klavye yazımını o monitördeki pencereye otomatik
+olarak yönlendirir. Laptop + harici monitör kullanıp sık sık yanlış pencereye
+yazanlar için yapıldı.
 
-## Gereksinimler
+**Hiç bilgisayar/kod bilginiz olmasa bile** aşağıdaki adımları sırayla
+uygulayarak kurabilir ve kullanabilirsiniz. Hiçbir şeyi atlamadan, sırayla okuyun.
 
-- Windows 10/11
-- **En az 2 monitör** (tek monitörde anlamsız, program açılmaz)
-- Webcam
-- İnternet bağlantısı (ilk kurulumda bağımlılıklar ve gerekirse Python indirilir)
-- Python **3.10, 3.11 veya 3.12** — **ama elle kurmanıza gerek yok**, `baslat.bat`
-  bilgisayarda uyumlu bir Python bulamazsa kendisi otomatik indirip kurar
-  (önce `winget`, o da yoksa python.org'dan doğrudan). (3.13 desteklenmiyor,
-  mediapipe henüz uyumlu değil; script bunu otomatik atlayıp 3.12 kurar.)
+---
 
-## Kurulum (yeni bir bilgisayarda)
+## Önce kontrol edin
 
-1. **Projeyi indirin**, iki yoldan biriyle:
-   - Git ile:
-     ```
-     git clone https://github.com/tptSS/GazeFocus.git
-     ```
-   - Git yoksa: GitHub sayfasında yeşil **Code > Download ZIP** butonuna basıp
-     indirin, klasörü bir yere çıkartın (`.venv` ve kalibrasyon dosyası ilk
-     çalıştırmada otomatik oluşur, repoda yok).
-2. Klasöre girip **`baslat.bat`** dosyasına çift tıklayın. Şunları otomatik yapar:
-   - Bilgisayarda uyumlu Python (3.10-3.12) yoksa, önce `winget` ile, o da
-     yoksa python.org'dan indirip **yönetici izni istemeden** (kullanıcı
-     bazlı) sessizce kurar.
-   - Bir sanal ortam (`.venv`) kurar ve `requirements.txt`'teki bağımlılıkları
-     (mediapipe, opencv, vb.) indirir — ilk seferde birkaç dakika sürebilir.
-   - Kamera izni kapalıysa Windows'un kamera gizlilik ayarları otomatik açılır;
-     izin verdiğiniz an program kalibrasyona otomatik geçer.
-   - İlk kullanımda otomatik **kalibrasyon ekranı** açılır: her monitörde sırayla
-     çıkan noktalara doğal şekilde bakmanız yeterli (ESC ile iptal edebilirsiniz).
-3. Kalibrasyon bitince program arka planda çalışmaya başlar; konsolu kapatmayın,
-   küçültüp bırakabilirsiniz.
+- Windows bilgisayar olmalı (Windows 10 veya 11).
+- **En az 2 ekran** olmalı (laptop ekranı + harici monitör de sayılır). Tek
+  ekranda program hiçbir işe yaramaz, çalıştırmayın.
+- Bilgisayarda webcam (kamera) olmalı — laptopun kendi kamerası da olur.
+- İnternete bağlı olun (kurulum sırasında bazı dosyalar indirilecek).
 
-Sonraki çalıştırmalarda `baslat.bat`'a çift tıklamak yeterli — kurulum/kalibrasyon
-tekrar istenmez (monitör düzeni değişmediği sürece).
+---
 
-Otomatik Python kurulumu başarısız olursa (örn. hem winget hem internet erişimi
-yoksa), script size <https://www.python.org/downloads/> adresinden Python 3.12'yi
-elle kurmanızı ve "Add python.exe to PATH" kutusunu işaretlemenizi söyler.
+## 1. ADIM — Programı indirin
 
-## Kısayollar
+1. Tarayıcınızda şu adrese gidin: **https://github.com/tptSS/GazeFocus**
+2. Sayfada, sağ üst taraflarda yeşil renkli **"Code"** yazan bir düğme
+   göreceksiniz. Ona tıklayın.
+3. Açılan küçük pencerede en altta **"Download ZIP"** yazısı var, ona tıklayın.
+4. Bilgisayarınıza `GazeFocus-main.zip` adında bir dosya inecek (genelde
+   "İndirilenler" / "Downloads" klasörüne iner).
 
-| Tuş | İşlev |
+## 2. ADIM — ZIP dosyasını açın (çıkartın)
+
+Bu adım önemli, atlamayın — zip dosyasının **içine girmek** yetmez, dosyaları
+**çıkartmanız** gerekiyor:
+
+1. İndirilen `GazeFocus-main.zip` dosyasına **sağ tıklayın**.
+2. Açılan menüden **"Tümünü Ayıkla..."** (İngilizce Windows'ta "Extract All...")
+   seçeneğine tıklayın.
+3. Çıkan pencerede değiştirmeden **"Ayıkla" / "Extract"** düğmesine basın.
+4. Şimdi `GazeFocus-main` adında, zip olmayan, normal bir klasör oluşmuş
+   olmalı. O klasörü açın.
+
+## 3. ADIM — Programı başlatın
+
+1. Açtığınız klasörün içinde **`baslat.bat`** adında bir dosya göreceksiniz
+   (simgesi genelde bir dişli/terminal gibi görünür). **Çift tıklayın.**
+
+2. **Siyah bir pencere (konsol) açılacak ve içinde bir sürü yazı akacak.**
+   Bu normaldir, virüs falan değildir — program kendi kendine gerekli
+   parçaları indirip kuruyor demektir. **Pencereyi kapatmayın**, bitmesini
+   bekleyin. İnternet hızınıza göre bu **birkaç dakika** sürebilir (ilk
+   çalıştırmada; sonraki seferlerde anında açılır).
+
+   > Eğer ekranda mavi bir "Windows bilgisayarınızı korudu" uyarısı çıkarsa:
+   > **"Daha fazla bilgi"** yazısına, sonra çıkan **"Yine de çalıştır"**
+   > düğmesine tıklayın. Bu, programın imzasız/yeni olmasından kaynaklanan
+   > normal bir uyarıdır.
+
+3. Kurulum bitince program kamerayı kullanmak isteyecek. Eğer Windows
+   kamera izni kapalıysa, **Ayarlar otomatik açılır** — orada kamera
+   erişimini **açık** konuma getirin (bir anahtar/switch görürsünüz) ve
+   programın siyah penceresine geri dönün. Program izni fark edip kendisi
+   devam edecek, başka bir şey yapmanıza gerek yok.
+
+## 4. ADIM — Kalibrasyon (programın gözünüzü öğrenmesi)
+
+Kurulum bitince ekranlarınızda otomatik olarak bir **kalibrasyon** ekranı
+açılır. Bu, programın "senin gözün şu monitöre bakınca nasıl görünüyor"
+öğrendiği kısımdır:
+
+1. Önce kısa bir geri sayım görürsünüz ("3, 2, 1").
+2. Sonra ekranda **noktalar** belirir (önce büyük mavi, sonra küçük kırmızı).
+   Her nokta çıktığında **sadece o noktaya doğal şekilde bakın**, başınızı
+   fazla oynatmadan. Nokta birkaç saniye ekranda kalır, sonra bir sonrakine
+   geçer.
+3. Bu, sırayla her monitör için tekrarlanır.
+4. Bir monitörün kalibrasyonu bitince otomatik diğerine geçer. Hiçbir tuşa
+   basmanıza gerek yok, sadece bakın.
+5. Vazgeçmek isterseniz **ESC** tuşuna basabilirsiniz (program kapanır).
+
+Kalibrasyon bitince program artık **arka planda sessizce çalışmaya** başlar.
+Siyah pencereyi **kapatmayın**, isterseniz görev çubuğundan küçültebilirsiniz
+— kapatırsanız program da durur.
+
+**Artık kurulum bitti!** Şimdi hangi monitöre bakarsanız, birkaç saniye
+içinde klavye yazımı otomatik olarak o monitördeki pencereye geçecek.
+
+---
+
+## Sonraki kullanımlarda ne yapacaksınız?
+
+Kurulumu bir daha yapmanıza gerek yok. Bilgisayarı her açtığınızda sadece:
+
+- Aynı klasöre gidip **`baslat.bat`**'a çift tıklayın, hepsi bu kadar.
+  (İsterseniz bu dosyaya sağ tıklayıp **"Kısayol oluştur"** diyip o kısayolu
+  masaüstüne taşıyabilirsiniz, böylece her seferinde klasörü aramanıza gerek
+  kalmaz.)
+
+## Kullanırken bilmeniz gerekenler (kısayollar)
+
+Bu üç tuşa **aynı anda** basarsanız:
+
+| Tuşlar | Ne işe yarar |
 |---|---|
-| `Ctrl+Alt+G` | Duraklat / devam ettir |
-| `Ctrl+Alt+C` | Yeniden kalibre et |
-| `Ctrl+Alt+Q` | Çıkış |
+| `Ctrl` + `Alt` + `G` | Programı duraklatır / tekrar basınca devam ettirir (yazarken rahatsız ediyorsa kullanın) |
+| `Ctrl` + `Alt` + `C` | Kalibrasyonu baştan yapar (doğruluğu kötüyse bunu deneyin) |
+| `Ctrl` + `Alt` + `Q` | Programı tamamen kapatır |
 
-## Yönetici olarak açılmış pencereler
+---
 
-Yönetici yetkisiyle açılmış bir pencereye (örn. yönetici olarak çalışan bir
-uygulama) odak verebilmesi için GazeFocus'un da yönetici olarak çalıştırılması
-gerekir: `baslat.bat`'a sağ tık → **Yönetici olarak çalıştır**.
+## Bir şeyler ters giderse
 
-## Faydalı bayraklar
+- **Siyah pencere açılır açılmaz kapanıyor:** Bir hata olmuş demektir.
+  `baslat.bat`'a tekrar çift tıklayın, bu sefer pencere kapanmadan hemen
+  önce ekranda kırmızımsı bir hata yazısı görebilirsiniz, onu okuyun/not
+  alın.
+- **"En az iki monitör gerekli" yazısı çıkıyor:** Bilgisayara ikinci bir
+  ekran bağlı değil demektir, bu programı tek ekranla kullanamazsınız.
+- **Program yanlış monitörü algılıyor:** `Ctrl+Alt+C` ile yeniden kalibre
+  edin, bu sefer ışığın yüzünüze daha iyi vurduğu, kameraya daha dönük
+  oturduğunuz bir anda yapın.
+- **Yönetici olarak açılmış bir pencereye (örn. "Yönetici olarak çalıştır"
+  ile açılmış bir program) odak vermiyor:** `baslat.bat` dosyasına sağ
+  tıklayıp **"Yönetici olarak çalıştır"** ile açmanız gerekir.
+- **Kamera izni sorunu çözülmüyor:** Windows arama kutusuna "kamera
+  gizlilik ayarları" yazıp açın, "Masaüstü uygulamalarının kameranıza
+  erişmesine izin ver" seçeneğinin **açık** olduğundan emin olun.
+
+---
+
+## İleri düzey / teknik detaylar
+
+Bu kısım normal kullanım için gerekli değil, meraklısına ve geliştirme için.
+
+### Git ile indirme (ZIP yerine)
+
+```
+git clone https://github.com/tptSS/GazeFocus.git
+```
+
+### Python otomatik kurulumu nasıl çalışıyor?
+
+`baslat.bat`, bilgisayarda uyumlu bir Python (3.10, 3.11 veya 3.12 — **3.13
+desteklenmiyor**, mediapipe henüz uyumlu değil) bulamazsa önce `winget` ile,
+o da yoksa python.org'dan doğrudan indirip (yönetici izni istemeden) sessizce
+kurar. Her ikisi de başarısız olursa size python.org adresinden elle kurmanızı
+söyler.
+
+### Komut satırı bayrakları
 
 ```
 python gaze_focus.py --preview          # kamera önizlemesi + canlı tahmin (doğruluğu kontrol için)
@@ -69,16 +157,16 @@ python gaze_focus.py --dwell 0.6        # monitör değişimi için gereken bak�
 python gaze_focus.py --type-guard 1.5   # son tuştan sonra bu kadar sn odak değişmesin
 ```
 
-(`baslat.bat --preview` gibi `baslat.bat`'a da aynı bayraklar eklenebilir.)
+`baslat.bat --preview` gibi `baslat.bat`'a da aynı bayraklar eklenebilir.
 
-## Kalibrasyon verisi nerede tutuluyor?
+### Kalibrasyon verisi nerede tutuluyor?
 
-`%APPDATA%\GazeFocus\calibration.json`. Monitör sayısı/düzeni değişirse program
-bunu otomatik fark edip yeniden kalibrasyon ister. Elle silip `--calibrate` ile
-de yeniden yapılabilir.
+`%APPDATA%\GazeFocus\calibration.json`. Monitör sayısı/düzeni değişirse
+program bunu otomatik fark edip yeniden kalibrasyon ister.
 
-## Bilinen sınırlar
+### Bilinen sınırlar
 
-- Sadece monitör seviyesinde çalışır; aynı ekrandaki pencere/sekme ayrımı yapmaz
-  (webcam hassasiyeti yetmiyor, bunun için Tobii gibi göz izleyici gerekir).
+- Sadece monitör seviyesinde çalışır; aynı ekrandaki pencere/sekme ayrımı
+  yapmaz (webcam hassasiyeti yetmiyor, bunun için Tobii gibi göz izleyici
+  gerekir).
 - Tek monitörde çalışmaz, en az 2 monitör gerekir.
