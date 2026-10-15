@@ -346,8 +346,19 @@ class GazeTracker:
         self.mesh.close()
 
 
+KEYBOARD_LABEL = -1  # "klavyeye/ekran dışına bakılıyor" için ayrılmış özel sınıf
+
+
 class MonitorClassifier:
-    """Normalize edilmiş k-NN: hangi monitöre bakıldığını oy çokluğuyla bulur."""
+    """Normalize edilmiş k-NN: hangi monitöre bakıldığını oy çokluğuyla bulur.
+
+    İki güvenlik mekanizması var:
+      1) Kalibrasyon sırasında hiç görülmemiş, aşırı uçuk bir bakışsa (örn.
+         klavyeye bakarken kafanın çok aşağı eğilmesi) mesafe eşiğini aşar ve
+         "kararsız" (None) döner, en yakın monitöre zorla atanmaz.
+      2) Kalibrasyonda ayrıca "klavyeye bak" örnekleri toplanmışsa (KEYBOARD_LABEL),
+         bakış o sınıfa en yakınsa yine None döner — hiçbir monitöre odak geçmez.
+    """
 
     def __init__(self, X, y, k=7, rects=None):
         self.rects = rects
@@ -357,11 +368,39 @@ class MonitorClassifier:
         self.X = (X - self.mu) / self.sd
         self.y = np.asarray(y, dtype=int)
         self.k = min(k, len(self.y))
+        self.max_dist = self._estimate_max_dist()
+
+    def _estimate_max_dist(self):
+        """Kalibrasyon noktalarının kendi aralarındaki en uç komşuluk mesafesi
+        (leave-one-out). Bunun epeyce ötesindeki bir bakış, hiç kalibre
+        edilmemiş bir yöne (örn. telefona bakma) bakıldığı anlamına gelir.
+
+        Bol bir pay bırakılıyor (en uç mesafenin 3 katı): amaç günlük kullanım
+        sırasındaki normal gürültüyü (ışık, poz farkı) yanlışlıkla reddetmemek,
+        sadece gerçekten alakasız bakışları elemek. Klavyeye bakma durumu zaten
+        ayrı bir sınıf (KEYBOARD_LABEL) olarak kalibre edildiği için bu eşikten
+        bağımsız şekilde yakalanıyor.
+        """
+        n = len(self.X)
+        k = min(self.k, n - 1)
+        if k < 1:
+            return float("inf")
+        dists = np.empty(n)
+        for i in range(n):
+            d = np.linalg.norm(self.X - self.X[i], axis=1)
+            d[i] = np.inf
+            idx = np.argpartition(d, k - 1)[:k]
+            dists[i] = d[idx].mean()
+        return float(dists.max() * 3 + 1e-6)
 
     def predict(self, f):
         d = np.linalg.norm(self.X - (f - self.mu) / self.sd, axis=1)
         idx = np.argpartition(d, self.k - 1)[: self.k]
+        if d[idx].mean() > self.max_dist:
+            return None, 0.0  # kalibrasyonda hiç görülmemiş bir bakış yönü
         label, count = Counter(self.y[idx].tolist()).most_common(1)[0]
+        if label == KEYBOARD_LABEL:
+            return None, 0.0  # klavyeye/ekran dışına bakılıyor, odak değişmesin
         return label, count / self.k
 
 
@@ -370,6 +409,8 @@ class MonitorClassifier:
 # --------------------------------------------------------------------------- #
 CALIB_PATH = os.path.join(os.environ.get("APPDATA", "."), "GazeFocus", "calibration.json")
 POINTS = [(0.5, 0.5), (0.15, 0.15), (0.85, 0.15), (0.85, 0.85), (0.15, 0.85), (0.5, 0.15), (0.5, 0.85)]
+KEYBOARD_SAMPLES = 80
+KEYBOARD_DEADLINE = 8.0
 
 
 class CalibrationAborted(RuntimeError):
@@ -451,6 +492,55 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
         win.destroy()
         if aborted["v"]:
             break
+
+    # Klavyeye bakma durumunu da öğret: böylece yazarken refleks olarak
+    # klavyeye bakınca yanlışlıkla bir monitöre odak geçmesin.
+    if not aborted["v"]:
+        l0, t0, r0, b0 = monitors[0]["rect"]
+        w0, h0 = r0 - l0, b0 - t0
+        win = tk.Toplevel(root)
+        win.overrideredirect(True)
+        win.geometry(f"{w0}x{h0}+{l0}+{t0}")
+        win.attributes("-topmost", True)
+        win.bind("<Escape>", abort)
+        win.focus_force()
+        cv = tk.Canvas(win, bg="#111111", highlightthickness=0)
+        cv.pack(fill="both", expand=True)
+
+        for s in (3, 2, 1):
+            if aborted["v"]:
+                break
+            cv.delete("all")
+            cv.create_text(
+                w0 // 2, h0 // 2, fill="white", font=("Segoe UI", 26),
+                text="Son adım: Şimdi EKRANA DEĞİL, klavyenize bakın\n"
+                     "(yazı yazıyormuş gibi, kafanızı doğal şekilde aşağı eğin)\n\n"
+                     f"İptal: ESC\n\n{s}",
+                justify="center",
+            )
+            win.update()
+            time.sleep(1)
+
+        if not aborted["v"]:
+            n, deadline, misses = 0, time.monotonic() + KEYBOARD_DEADLINE, 0
+            while n < KEYBOARD_SAMPLES and time.monotonic() < deadline and not aborted["v"]:
+                cv.delete("all")
+                cv.create_text(
+                    w0 // 2, h0 // 2, fill="#ff8844", font=("Segoe UI", 20),
+                    text="Klavyenize bakmaya devam edin...",
+                    justify="center",
+                )
+                win.update()
+                f = tracker.read()
+                if f is not None:
+                    X.append(f.tolist())
+                    y.append(KEYBOARD_LABEL)
+                    n += 1
+                else:
+                    misses += 1
+            if n < KEYBOARD_SAMPLES // 2:
+                print(f"  ! Klavye bakışı için az örnek toplandı ({n}).")
+        win.destroy()
 
     root.destroy()
 

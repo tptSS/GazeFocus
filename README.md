@@ -77,7 +77,12 @@ açılır. Bu, programın "senin gözün şu monitöre bakınca nasıl görünü
 3. Bu, sırayla her monitör için tekrarlanır.
 4. Bir monitörün kalibrasyonu bitince otomatik diğerine geçer. Hiçbir tuşa
    basmanıza gerek yok, sadece bakın.
-5. Vazgeçmek isterseniz **ESC** tuşuna basabilirsiniz (program kapanır).
+5. **En son** ekranda "Şimdi klavyenize bakın" yazısı çıkar — bu adımda
+   **ekrana değil, gerçekten klavyenize** bakın, yazı yazıyormuş gibi kafanızı
+   doğal şekilde aşağı eğin. Bu sayede program, siz refleks olarak klavyeye
+   baktığınızda bunu "monitöre bakma" ile karıştırmayı öğrenir — yani yazarken
+   kafanızı klavyeye çevirseniz bile yanlış pencereye geçiş yapmaz.
+6. Vazgeçmek isterseniz **ESC** tuşuna basabilirsiniz (program kapanır).
 
 Kalibrasyon bitince program artık **arka planda sessizce çalışmaya** başlar.
 Siyah pencereyi **kapatmayın**, isterseniz görev çubuğundan küçültebilirsiniz
@@ -163,6 +168,16 @@ python gaze_focus.py --type-guard 1.5   # son tuştan sonra bu kadar sn odak de�
 
 `%APPDATA%\GazeFocus\calibration.json`. Monitör sayısı/düzeni değişirse
 program bunu otomatik fark edip yeniden kalibrasyon ister.
+
+### Klavyeye bakma koruması nasıl çalışıyor?
+
+Kalibrasyonun son adımında toplanan "klavyeye bakma" örnekleri ayrı bir sınıf
+olarak eğitilir; bakış bu sınıfa en yakınsa (veya kalibrasyonda hiç görülmemiş,
+aşırı uçuk bir yöne bakılıyorsa) program hiçbir monitöre odak **geçirmez**,
+olduğu pencerede kalır. Bu koruma sadece **yeni kalibrasyonlarda** vardır —
+bu özellik eklenmeden önce yapılmış eski bir `calibration.json` dosyanız
+varsa, tam korumadan yararlanmak için `Ctrl+Alt+C` ile (veya dosyayı silip)
+yeniden kalibre edin.
 
 ### Bilinen sınırlar
 
