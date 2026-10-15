@@ -174,6 +174,10 @@ tarafta kalıp o monitördeki **en son kullandığınız pencereyi** seçer
 - **Kamera izni sorunu çözülmüyor:** Windows arama kutusuna "kamera
   gizlilik ayarları" yazıp açın, "Masaüstü uygulamalarının kameranıza
   erişmesine izin ver" seçeneğinin **açık** olduğundan emin olun.
+- **"Kamera görüntüsü tamamen karanlık" uyarısı çıkıyor:** Bazı laptoplarda
+  kameranın üzerinde fiziksel bir kapak/slayt vardır — yazılım kamerayı
+  "açık" görse bile slayt kapalıysa görüntü simsiyah gelir. Slaytı/kapağı
+  açıp tekrar deneyin.
 
 ---
 

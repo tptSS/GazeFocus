@@ -543,6 +543,14 @@ CALIB_PATH = os.path.join(os.environ.get("APPDATA", "."), "GazeFocus", "calibrat
 POINTS = [(0.5, 0.5), (0.15, 0.15), (0.85, 0.15), (0.85, 0.85), (0.15, 0.85), (0.5, 0.15), (0.5, 0.85)]
 KEYBOARD_SAMPLES = 80
 KEYBOARD_DEADLINE = 8.0
+MIN_COLLECT_TIME = 1.6  # kamera hızlıysa 25 örnek <2 sn'de toplanıyordu, nokta görünmeden kayboluyordu
+DARK_FRAME_THRESHOLD = 18.0  # bu ortalama parlaklığın altı: kamera kapağı/slaytı kapalı olabilir
+
+
+def _is_dark_frame(frame):
+    """Kameranın lens kapağı/slaytı kapalıyken kare neredeyse tamamen siyah gelir
+    (normal bir oda ~100+ parlaklık, tam kapalı lens ~0-10 civarı ölçüldü)."""
+    return frame is not None and float(frame.mean()) < DARK_FRAME_THRESHOLD
 
 
 class CalibrationAborted(RuntimeError):
@@ -589,7 +597,7 @@ def _draw_progress(cv, w, h, done, total):
         cv.create_rectangle(x0, y0, x0 + bar_w * frac, y0 + bar_h, fill=_CAL_ACCENT, outline="")
 
 
-def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
+def calibrate(tracker, monitors, samples_per_point=25, settle=1.1):
     import tkinter as tk
 
     root = tk.Tk()
@@ -652,14 +660,21 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
                 tracker.read()  # kamera tamponunu taze tut
             if aborted["v"]:
                 break
-            # Örnek toplama
+            # Örnek toplama: en az MIN_COLLECT_TIME sn sürsün (kamera hızlıysa
+            # samples_per_point anında dolup nokta göz açıp kapayana dek kayboluyordu)
+            t1 = time.monotonic()
             n, deadline, misses = 0, time.monotonic() + 8, 0
-            while n < samples_per_point and time.monotonic() < deadline and not aborted["v"]:
+            while ((time.monotonic() - t1 < MIN_COLLECT_TIME or n < samples_per_point)
+                   and time.monotonic() < deadline and not aborted["v"]):
                 cv.delete("all")
                 _draw_glow_dot(cv, cx, cy, 9, _CAL_FOCUS)
                 if misses > 15:
+                    if _is_dark_frame(tracker.last_frame):
+                        warn_txt = "Kamera görüntüsü tamamen karanlık - kameranızdaki kapağı/slaytı açın"
+                    else:
+                        warn_txt = "Yüz algılanmıyor - kameraya dönük ve aydınlık olun"
                     cv.create_text(w // 2, int(h * 0.9), fill=_CAL_WARN, font=("Segoe UI", 18),
-                                   text="Yüz algılanmıyor - kameraya dönük ve aydınlık olun")
+                                   text=warn_txt)
                 _draw_progress(cv, w, h, done_steps, total_steps)
                 win.update()
                 f = tracker.read()
@@ -722,12 +737,18 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
             time.sleep(1)
 
         if not aborted["v"]:
+            t1 = time.monotonic()
             n, deadline, misses = 0, time.monotonic() + KEYBOARD_DEADLINE, 0
-            while n < KEYBOARD_SAMPLES and time.monotonic() < deadline and not aborted["v"]:
+            while ((time.monotonic() - t1 < MIN_COLLECT_TIME or n < KEYBOARD_SAMPLES)
+                   and time.monotonic() < deadline and not aborted["v"]):
                 cv.delete("all")
+                if misses > 15 and _is_dark_frame(tracker.last_frame):
+                    txt = "Kamera görüntüsü tamamen karanlık - kameranızdaki kapağı/slaytı açın"
+                else:
+                    txt = "Klavyenize bakmaya devam edin..."
                 cv.create_text(
                     w0 // 2, h0 // 2, fill=_CAL_KBD, font=("Segoe UI", 20, "bold"),
-                    text="Klavyenize bakmaya devam edin...",
+                    text=txt,
                     justify="center",
                 )
                 _draw_progress(cv, w0, h0, done_steps, total_steps)
@@ -848,6 +869,15 @@ def run(args):
         tracker = GazeTracker(args.camera)
     except RuntimeError as exc:
         sys.exit(str(exc))
+
+    # Bazı laptoplarda kameranın üstünde fiziksel bir kapak/slayt vardır; kamera
+    # yazılımsal olarak "açık" görünür ama görüntü tamamen karanlık gelir.
+    for _ in range(5):
+        tracker.read()
+    if _is_dark_frame(tracker.last_frame):
+        print("UYARI: Kamera görüntüsü tamamen karanlık görünüyor. Kameranızın "
+              "üzerinde fiziksel bir kapak/slayt varsa açık olduğundan emin olun.")
+
     clf = None if args.calibrate else load_calibration(monitors)
     if clf is None:
         try:
