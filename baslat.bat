@@ -42,8 +42,26 @@ if not exist .venv (
     call .venv\Scripts\activate.bat
 )
 
-python gaze_focus.py %*
-pause
+echo.
+echo Kurulum tamam. GazeFocus arka planda baslatiliyor, bu pencere kapanacak...
+
+rem Programi gorunur bir komut istemi penceresi birakmadan arka planda
+rem calistir (kalibrasyon gerekiyorsa o ekranlar yine de normal gorunur,
+rem sadece siyah komut istemi penceresi kalmaz). Cikti log dosyasina yazilir.
+> "%~dp0_oto_calistir.bat" (
+    echo @echo off
+    echo cd /d "%~dp0"
+    echo if not exist "%%APPDATA%%\GazeFocus" mkdir "%%APPDATA%%\GazeFocus"
+    echo echo ---- %%date%% %%time%% baslatildi ^(baslat.bat^) ---- ^>^> "%%APPDATA%%\GazeFocus\baslat.log"
+    echo ".venv\Scripts\python.exe" gaze_focus.py %* ^>^> "%%APPDATA%%\GazeFocus\baslat.log" 2^>^&1
+)
+set "VBS=%TEMP%\gazefocus_baslat.vbs"
+> "%VBS%" (
+    echo Set WshShell = CreateObject^("WScript.Shell"^)
+    echo WshShell.Run """%~dp0_oto_calistir.bat""", 0, False
+)
+start "" wscript.exe "%VBS%"
+timeout /t 1 >nul
 exit /b 0
 
 :find_python

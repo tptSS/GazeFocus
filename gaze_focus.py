@@ -2,7 +2,9 @@
 GazeFocus - Baktığın monitördeki pencereye klavye odağını otomatik verir.
 
 Webcam + MediaPipe Face Mesh ile kafa yönü ve iris konumunu okur, kalibrasyonla
-hangi monitöre baktığını sınıflandırır, o monitördeki en üstteki pencereyi öne alır.
+hangi monitöre baktığını sınıflandırır, o monitördeki pencereyi öne alır. Aynı
+monitörde birden fazla pencere varsa (ör. yan yana iki sekme) bakılan bölgeye
+(sol/sağ, üst/alt) göre hangisi olduğunu da ayırt etmeye çalışır (deneysel).
 
 Kısayollar:
   Ctrl+Alt+G veya Ctrl+Alt+F  -> Duraklat / devam (oyun vb. için hızlı kapat/aç)
@@ -82,6 +84,8 @@ user32.GetWindowThreadProcessId.restype = wintypes.DWORD
 user32.SetForegroundWindow.argtypes = [wintypes.HWND]
 user32.BringWindowToTop.argtypes = [wintypes.HWND]
 user32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.GetWindowRect.restype = wintypes.BOOL
 kernel32.GetConsoleWindow.restype = wintypes.HWND
 
 MONITORENUMPROC = ctypes.WINFUNCTYPE(
@@ -146,19 +150,99 @@ def _is_candidate(hwnd, console_hwnd):
     return cloaked.value == 0
 
 
-def topmost_window_on_monitor(hmon):
-    """Z-sırasına göre o monitördeki en üstteki (= orada en son kullanılan) pencere."""
+def candidate_windows_on_monitor(hmon):
+    """Z-sırasına göre (en üstteki önce) o monitördeki TÜM aday pencereler."""
     console = kernel32.GetConsoleWindow()
     found = []
 
     def cb(hwnd, _lp):
         if _is_candidate(hwnd, console) and monitor_of(hwnd) == hmon:
             found.append(hwnd)
-            return False  # ilk bulunan yeterli
         return True
 
     user32.EnumWindows(WNDENUMPROC(cb), 0)
+    return found
+
+
+def topmost_window_on_monitor(hmon):
+    """Z-sırasına göre o monitördeki en üstteki (= orada en son kullanılan) pencere."""
+    found = candidate_windows_on_monitor(hmon)
     return found[0] if found else None
+
+
+def get_window_rect(hwnd):
+    r = wintypes.RECT()
+    if user32.GetWindowRect(hwnd, ctypes.byref(r)):
+        return [r.left, r.top, r.right, r.bottom]
+    return None
+
+
+def pick_window_for_region(hmon, mon_rect, lr_label, lr_conf, tb_label, tb_conf, min_conf=0.7):
+    """Bir monitörde birden fazla pencere varsa (ör. yan yana iki sekme),
+    bakılan bölgeye (sol/sağ, üst/alt, ya da ikisi birden = köşe) ekran
+    konumu en uygun olanı seçer.
+
+    Eşleşme, pencerenin kendi alanının ne kadarının istenen bölgenin İÇİNDE
+    kaldığına (örtüşme oranı) bakılarak yapılır — sadece merkez noktasına
+    bakmak, tüm ekranı kaplayan bir pencereyi de yanlışlıkla "doğru yarıda"
+    sayabiliyordu (gerçek pencerelerle test edilirken bulundu). Z-sırası
+    sadece eşit örtüşmede ince bir tercih sebebi.
+
+    Tek pencere varsa veya bölge sinyali belirsizse, eski davranışa (basitçe
+    en üstteki pencere) döner — geriye dönük uyumlu ve her zaman güvenli.
+    """
+    candidates = candidate_windows_on_monitor(hmon)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    l, t, r, b = mon_rect
+    mw, mh = r - l, b - t
+    want_left = lr_label == 0 and lr_conf >= min_conf
+    want_right = lr_label == 1 and lr_conf >= min_conf
+    want_top = tb_label == 0 and tb_conf >= min_conf
+    want_bottom = tb_label == 1 and tb_conf >= min_conf
+
+    if not (want_left or want_right or want_top or want_bottom):
+        return candidates[0]  # bölge belirsiz, en üstteki pencereyi ver
+
+    # İstenen bölgenin (yarım/çeyrek) monitördeki dikdörtgeni
+    rx0, rx1 = l, r
+    if want_left:
+        rx1 = l + mw / 2
+    elif want_right:
+        rx0 = l + mw / 2
+    ry0, ry1 = t, b
+    if want_top:
+        ry1 = t + mh / 2
+    elif want_bottom:
+        ry0 = t + mh / 2
+
+    MIN_OVERLAP = 0.6  # pencerenin en az %60'ı istenen bölgede olmalı
+    best, best_score = None, -1.0
+    for z_idx, hwnd in enumerate(candidates):
+        wr = get_window_rect(hwnd)
+        if not wr:
+            continue
+        wl, wt, wr_, wb = wr
+        # Pencerenin monitörle kesişimi (ekran dışına taşan kısımları yok say)
+        mx0, my0 = max(wl, l), max(wt, t)
+        mx1, my1 = min(wr_, r), min(wb, b)
+        win_area = max(0, mx1 - mx0) * max(0, my1 - my0)
+        if win_area <= 0:
+            continue
+        # O kesişimin, istenen bölgeyle kesişimi
+        ix0, iy0 = max(mx0, rx0), max(my0, ry0)
+        ix1, iy1 = min(mx1, rx1), min(my1, ry1)
+        overlap = max(0, ix1 - ix0) * max(0, iy1 - iy0)
+        overlap_ratio = overlap / win_area
+        if overlap_ratio < MIN_OVERLAP:
+            continue
+        score = overlap_ratio + 0.05 / (z_idx + 1)  # eşit örtüşmede üst Z-sırası kazanır
+        if score > best_score:
+            best, best_score = hwnd, score
+    return best or candidates[0]
 
 
 def force_foreground(hwnd):
@@ -351,6 +435,51 @@ class GazeTracker:
 KEYBOARD_LABEL = -1  # "klavyeye/ekran dışına bakılıyor" için ayrılmış özel sınıf
 
 
+class RegionClassifier:
+    """Bir monitörün İÇİNDE sol/sağ ve üst/alt yarısını ayırt eden iki bağımsız
+    k-NN. Aynı ekranda yan yana/alt alta iki pencere varsa hangisine bakıldığını
+    tahmin etmek için kullanılır. Webcam hassasiyeti monitör-arası ayrımdan daha
+    düşük olduğundan bu "best effort" bir katmandır; eksen(ler) belirsizse None
+    döner ve çağıran taraf eski (sadece en üstteki pencere) davranışa düşer.
+    """
+
+    def __init__(self, lr_X, lr_y, tb_X, tb_y, k=5):
+        self.lr = self._fit(lr_X, lr_y, k)
+        self.tb = self._fit(tb_X, tb_y, k)
+
+    @staticmethod
+    def _fit(X, y, k):
+        if len(X) < 2 or len(set(y)) < 2:
+            return None
+        X = np.asarray(X, dtype=np.float64)
+        mu = X.mean(axis=0)
+        sd = X.std(axis=0) + 1e-6
+        return {
+            "X": (X - mu) / sd,
+            "y": np.asarray(y, dtype=int),
+            "mu": mu,
+            "sd": sd,
+            "k": min(k, len(y)),
+        }
+
+    @staticmethod
+    def _predict_axis(fitted, f):
+        if fitted is None:
+            return None, 0.0
+        q = (f - fitted["mu"]) / fitted["sd"]
+        d = np.linalg.norm(fitted["X"] - q, axis=1)
+        idx = np.argpartition(d, fitted["k"] - 1)[: fitted["k"]]
+        label, count = Counter(fitted["y"][idx].tolist()).most_common(1)[0]
+        return label, count / fitted["k"]
+
+    def predict(self, f):
+        """-> (sol/sağ etiket (0=sol,1=sağ) ya da None, güven,
+               üst/alt etiket (0=üst,1=alt) ya da None, güven)"""
+        lr_label, lr_conf = self._predict_axis(self.lr, f)
+        tb_label, tb_conf = self._predict_axis(self.tb, f)
+        return lr_label, lr_conf, tb_label, tb_conf
+
+
 class MonitorClassifier:
     """Normalize edilmiş k-NN: hangi monitöre bakıldığını oy çokluğuyla bulur.
 
@@ -362,8 +491,9 @@ class MonitorClassifier:
          bakış o sınıfa en yakınsa yine None döner — hiçbir monitöre odak geçmez.
     """
 
-    def __init__(self, X, y, k=7, rects=None):
+    def __init__(self, X, y, k=7, rects=None, regions=None):
         self.rects = rects
+        self.regions = regions or {}  # {monitor_index: RegionClassifier}
         X = np.asarray(X, dtype=np.float64)
         self.mu = X.mean(axis=0)
         self.sd = X.std(axis=0) + 1e-6
@@ -419,13 +549,56 @@ class CalibrationAborted(RuntimeError):
     pass
 
 
+# Kalibrasyon ekranı renk paleti
+_CAL_BG = "#12141a"
+_CAL_TEXT = "#eef0f6"
+_CAL_MUTED = "#8891a6"
+_CAL_ACCENT = "#4da6ff"   # yaklaşan/küçülen nokta
+_CAL_FOCUS = "#ff5c7a"    # örnek toplanan nokta
+_CAL_WARN = "#ffb020"
+_CAL_KBD = "#ffb020"
+_CAL_TRACK = "#262a36"    # ilerleme çubuğu zemini
+
+
+def _hex_to_rgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _blend(c1, c2, t):
+    """c1 -> c2 arası t (0..1) oranında karışım; sahte 'glow' halkaları için."""
+    a, b = _hex_to_rgb(c1), _hex_to_rgb(c2)
+    return "#%02x%02x%02x" % tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
+
+
+def _draw_glow_dot(cv, cx, cy, r, color, bg=_CAL_BG):
+    """Düz tek renk yerine, dışa doğru soluklaşan 3 katmanlı yumuşak nokta."""
+    for rad, t in ((r * 2.2, 0.82), (r * 1.55, 0.55), (r, 0.0)):
+        cv.create_oval(cx - rad, cy - rad, cx + rad, cy + rad,
+                        fill=_blend(color, bg, t), outline="")
+
+
+def _draw_progress(cv, w, h, done, total):
+    """Ekranın altında ince bir ilerleme çubuğu."""
+    if total <= 0:
+        return
+    bar_w, bar_h, margin = w * 0.3, 5, 28
+    x0, y0 = (w - bar_w) / 2, h - margin
+    cv.create_rectangle(x0, y0, x0 + bar_w, y0 + bar_h, fill=_CAL_TRACK, outline="")
+    frac = max(0.0, min(1.0, done / total))
+    if frac > 0:
+        cv.create_rectangle(x0, y0, x0 + bar_w * frac, y0 + bar_h, fill=_CAL_ACCENT, outline="")
+
+
 def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
     import tkinter as tk
 
     root = tk.Tk()
     root.withdraw()
     X, y = [], []
+    region_raw = {mi: {"lr_X": [], "lr_y": [], "tb_X": [], "tb_y": []} for mi in range(len(monitors))}
     aborted = {"v": False}
+    total_steps = len(monitors) * len(POINTS) + 1  # +1: klavye adımı
+    done_steps = 0
 
     def abort(_e=None):
         aborted["v"] = True
@@ -439,20 +612,25 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
         win.attributes("-topmost", True)
         win.bind("<Escape>", abort)
         win.focus_force()
-        cv = tk.Canvas(win, bg="#111111", highlightthickness=0)
+        cv = tk.Canvas(win, bg=_CAL_BG, highlightthickness=0)
         cv.pack(fill="both", expand=True)
 
-        # Kısa geri sayım
-        for s in (3, 2, 1):
+        # Geri sayım
+        for s in (5, 4, 3, 2, 1):
             if aborted["v"]:
                 break
             cv.delete("all")
             cv.create_text(
-                w // 2, h // 2, fill="white", font=("Segoe UI", 26),
-                text=f"Monitör {mi + 1}/{len(monitors)}\n\nNoktalara doğal şekilde bak "
-                     f"(kafanı normalde nasıl çeviriyorsan öyle)\n\nİptal: ESC\n\n{s}",
+                w // 2, int(h * 0.38), fill=_CAL_MUTED, font=("Segoe UI", 17),
+                text=f"Monitör {mi + 1}/{len(monitors)}  •  Noktalara doğal şekilde bak\n"
+                     "(kafanı normalde nasıl çeviriyorsan öyle)   —   İptal: ESC",
                 justify="center",
             )
+            cv.create_text(
+                w // 2, int(h * 0.52), fill=_CAL_TEXT, font=("Segoe UI", 54, "bold"),
+                text=str(s),
+            )
+            _draw_progress(cv, w, h, done_steps, total_steps)
             win.update()
             time.sleep(1)
         if aborted["v"]:
@@ -466,9 +644,10 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
             # Küçülen nokta animasyonu (gözün yerleşmesi için)
             t0 = time.monotonic()
             while time.monotonic() - t0 < settle and not aborted["v"]:
-                rad = 28 - 18 * (time.monotonic() - t0) / settle
+                rad = 24 - 15 * (time.monotonic() - t0) / settle
                 cv.delete("all")
-                cv.create_oval(cx - rad, cy - rad, cx + rad, cy + rad, fill="#3aa0ff", outline="")
+                _draw_glow_dot(cv, cx, cy, rad, _CAL_ACCENT)
+                _draw_progress(cv, w, h, done_steps, total_steps)
                 win.update()
                 tracker.read()  # kamera tamponunu taze tut
             if aborted["v"]:
@@ -477,20 +656,31 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
             n, deadline, misses = 0, time.monotonic() + 8, 0
             while n < samples_per_point and time.monotonic() < deadline and not aborted["v"]:
                 cv.delete("all")
-                cv.create_oval(cx - 10, cy - 10, cx + 10, cy + 10, fill="#ff4d4d", outline="")
+                _draw_glow_dot(cv, cx, cy, 9, _CAL_FOCUS)
                 if misses > 15:
-                    cv.create_text(w // 2, int(h * 0.9), fill="#ffcc55", font=("Segoe UI", 18),
+                    cv.create_text(w // 2, int(h * 0.9), fill=_CAL_WARN, font=("Segoe UI", 18),
                                    text="Yüz algılanmıyor - kameraya dönük ve aydınlık olun")
+                _draw_progress(cv, w, h, done_steps, total_steps)
                 win.update()
                 f = tracker.read()
                 if f is not None:
                     X.append(f.tolist())
                     y.append(mi)
                     n += 1
+                    # Aynı anda: bu monitörün İÇİNDE sol/sağ, üst/alt sınıfları
+                    if px < 0.5:
+                        region_raw[mi]["lr_X"].append(f.tolist()); region_raw[mi]["lr_y"].append(0)
+                    elif px > 0.5:
+                        region_raw[mi]["lr_X"].append(f.tolist()); region_raw[mi]["lr_y"].append(1)
+                    if py < 0.5:
+                        region_raw[mi]["tb_X"].append(f.tolist()); region_raw[mi]["tb_y"].append(0)
+                    elif py > 0.5:
+                        region_raw[mi]["tb_X"].append(f.tolist()); region_raw[mi]["tb_y"].append(1)
                 else:
                     misses += 1
             if n < samples_per_point // 2:
                 print(f"  ! Monitör {mi + 1} noktasında yüz az algılandı ({n} örnek).")
+            done_steps += 1
         win.destroy()
         if aborted["v"]:
             break
@@ -506,20 +696,28 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
         win.attributes("-topmost", True)
         win.bind("<Escape>", abort)
         win.focus_force()
-        cv = tk.Canvas(win, bg="#111111", highlightthickness=0)
+        cv = tk.Canvas(win, bg=_CAL_BG, highlightthickness=0)
         cv.pack(fill="both", expand=True)
 
-        for s in (3, 2, 1):
+        for s in (5, 4, 3, 2, 1):
             if aborted["v"]:
                 break
             cv.delete("all")
             cv.create_text(
-                w0 // 2, h0 // 2, fill="white", font=("Segoe UI", 26),
-                text="Son adım: Şimdi EKRANA DEĞİL, klavyenize bakın\n"
-                     "(yazı yazıyormuş gibi, kafanızı doğal şekilde aşağı eğin)\n\n"
-                     f"İptal: ESC\n\n{s}",
+                w0 // 2, int(h0 * 0.38), fill=_CAL_KBD, font=("Segoe UI", 18, "bold"),
+                text="Son adım: Şimdi EKRANA DEĞİL, klavyenize bakın",
                 justify="center",
             )
+            cv.create_text(
+                w0 // 2, int(h0 * 0.46), fill=_CAL_MUTED, font=("Segoe UI", 15),
+                text="(yazı yazıyormuş gibi, kafanızı doğal şekilde aşağı eğin)   —   İptal: ESC",
+                justify="center",
+            )
+            cv.create_text(
+                w0 // 2, int(h0 * 0.58), fill=_CAL_TEXT, font=("Segoe UI", 54, "bold"),
+                text=str(s),
+            )
+            _draw_progress(cv, w0, h0, done_steps, total_steps)
             win.update()
             time.sleep(1)
 
@@ -528,10 +726,11 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
             while n < KEYBOARD_SAMPLES and time.monotonic() < deadline and not aborted["v"]:
                 cv.delete("all")
                 cv.create_text(
-                    w0 // 2, h0 // 2, fill="#ff8844", font=("Segoe UI", 20),
+                    w0 // 2, h0 // 2, fill=_CAL_KBD, font=("Segoe UI", 20, "bold"),
                     text="Klavyenize bakmaya devam edin...",
                     justify="center",
                 )
+                _draw_progress(cv, w0, h0, done_steps, total_steps)
                 win.update()
                 f = tracker.read()
                 if f is not None:
@@ -542,6 +741,7 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
                     misses += 1
             if n < KEYBOARD_SAMPLES // 2:
                 print(f"  ! Klavye bakışı için az örnek toplandı ({n}).")
+        done_steps += 1
         win.destroy()
 
     root.destroy()
@@ -554,15 +754,20 @@ def calibrate(tracker, monitors, samples_per_point=25, settle=0.9):
             "Kamera görüşünü ve ışığı kontrol edip --preview ile deneyin."
         )
 
+    regions = {
+        mi: RegionClassifier(d["lr_X"], d["lr_y"], d["tb_X"], d["tb_y"])
+        for mi, d in region_raw.items()
+    }
+
     rects = [m["rect"] for m in monitors]
     os.makedirs(os.path.dirname(CALIB_PATH), exist_ok=True)
     tmp = CALIB_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump({"rects": rects, "X": X, "y": y,
+        json.dump({"rects": rects, "X": X, "y": y, "regions": region_raw,
                    "created": time.strftime("%Y-%m-%d %H:%M:%S")}, fh)
     os.replace(tmp, CALIB_PATH)
     print(f"Kalibrasyon kaydedildi: {CALIB_PATH} ({len(X)} örnek)")
-    return MonitorClassifier(X, y, rects=rects)
+    return MonitorClassifier(X, y, rects=rects, regions=regions)
 
 
 def load_calibration(monitors):
@@ -579,8 +784,14 @@ def load_calibration(monitors):
     if not data.get("X") or len(set(data.get("y", []))) < 2:
         print("Kayıtlı kalibrasyon bozuk, yeniden kalibrasyon gerekiyor.")
         return None
+    regions = {}
+    for mi_str, d in data.get("regions", {}).items():
+        try:
+            regions[int(mi_str)] = RegionClassifier(d["lr_X"], d["lr_y"], d["tb_X"], d["tb_y"])
+        except (KeyError, ValueError, TypeError):
+            continue
     print(f"Kayıtlı kalibrasyon yüklendi ({data.get('created', '?')}).")
-    return MonitorClassifier(data["X"], data["y"], rects=data["rects"])
+    return MonitorClassifier(data["X"], data["y"], rects=data["rects"], regions=regions)
 
 
 # --------------------------------------------------------------------------- #
@@ -707,16 +918,29 @@ def run(args):
             if label >= len(current):
                 continue
             target = current[label]["handle"]
-            fg = user32.GetForegroundWindow()
-            if fg and monitor_of(fg) == target:
+            target_rect = current[label]["rect"]
+
+            # Aynı monitörde birden fazla pencere varsa (ör. yan yana iki sekme),
+            # bakılan bölgeye (sol/sağ, üst/alt) göre hangisi oldugunu da tahmin et.
+            lr_label = lr_conf = tb_label = tb_conf = None
+            region_clf = clf.regions.get(label) if clf.regions else None
+            if region_clf is not None:
+                lr_label, lr_conf, tb_label, tb_conf = region_clf.predict(ema)
+
+            hwnd = pick_window_for_region(
+                target, target_rect, lr_label, lr_conf, tb_label, tb_conf, args.min_conf
+            )
+            if not hwnd:
                 continue
 
-            hwnd = topmost_window_on_monitor(target)
-            if hwnd:
-                ok = force_foreground(hwnd)
-                last_switch = now
-                print(f"[{time.strftime('%H:%M:%S')}] Monitör {label + 1} -> "
-                      f"{window_title(hwnd)[:60]!r} {'OK' if ok else 'BAŞARISIZ'}")
+            fg = user32.GetForegroundWindow()
+            if fg == hwnd:
+                continue  # zaten doğru pencerede
+
+            ok = force_foreground(hwnd)
+            last_switch = now
+            print(f"[{time.strftime('%H:%M:%S')}] Monitör {label + 1} -> "
+                  f"{window_title(hwnd)[:60]!r} {'OK' if ok else 'BAŞARISIZ'}")
     except KeyboardInterrupt:
         pass
     except CameraLost as exc:

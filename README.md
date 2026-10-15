@@ -57,11 +57,16 @@ Bu adım önemli, atlamayın — zip dosyasının **içine girmek** yetmez, dosy
    > düğmesine tıklayın. Bu, programın imzasız/yeni olmasından kaynaklanan
    > normal bir uyarıdır.
 
-3. Kurulum bitince program kamerayı kullanmak isteyecek. Eğer Windows
+3. Kurulum bitince **siyah pencere kendiliğinden kapanır** — bu normaldir,
+   program artık arka planda, görünmez şekilde çalışmaya devam ediyor
+   demektir (hiçbir zaman "şu an çalışıyorum" diye rahatsız edici bir
+   pencere göstermez).
+
+4. Kısa bir süre sonra program kamerayı kullanmak isteyecek. Eğer Windows
    kamera izni kapalıysa, **Ayarlar otomatik açılır** — orada kamera
-   erişimini **açık** konuma getirin (bir anahtar/switch görürsünüz) ve
-   programın siyah penceresine geri dönün. Program izni fark edip kendisi
-   devam edecek, başka bir şey yapmanıza gerek yok.
+   erişimini **açık** konuma getirin (bir anahtar/switch görürsünüz).
+   Program izni fark edip kendisi devam edecek, başka bir şey yapmanıza
+   gerek yok.
 
 ## 4. ADIM — Kalibrasyon (programın gözünüzü öğrenmesi)
 
@@ -134,6 +139,22 @@ Bu üç tuşa **aynı anda** basarsanız:
 | `Ctrl` + `Alt` + `C` | Kalibrasyonu baştan yapar (doğruluğu kötüyse bunu deneyin) |
 | `Ctrl` + `Alt` + `Q` | Programı tamamen kapatır |
 
+## Aynı ekranda iki pencere açıksa (deneysel)
+
+Aynı monitörü ortadan ikiye bölüp iki pencereyi yan yana (veya alt alta,
+hatta 4 köşeye) yerleştirdiyseniz, program artık **o monitörün içinde
+hangi yarıya/köşeye baktığınızı da** tahmin etmeye çalışır ve odağı doğru
+pencereye verir — sadece "hangi monitör" değil, "o monitörün neresi"
+sorusuna da cevap arar.
+
+Bu, kalibrasyonda zaten topladığınız verilerle (ekstra adım/süre gerekmez)
+otomatik çalışır. Ama **webcam ile bu ayrım, hangi monitöre baktığınızı
+ayırt etmekten doğası gereği daha zordur** (CLAUDE.md'de de belirtildiği
+gibi) — tam güvenilir olmayabilir. Sinyal belirsizse program güvenli
+tarafta kalıp o monitördeki **en son kullandığınız pencereyi** seçer
+(eskisi gibi). Daha iyi sonuç için pencereleri gerçekten net bir çizgiyle
+(tam yarı yarıya, Windows'un Sol/Sağ yaslama kısayolları gibi) bölün.
+
 ---
 
 ## Bir şeyler ters giderse
@@ -203,7 +224,9 @@ yeniden kalibre edin.
 
 ### Bilinen sınırlar
 
-- Sadece monitör seviyesinde çalışır; aynı ekrandaki pencere/sekme ayrımı
-  yapmaz (webcam hassasiyeti yetmiyor, bunun için Tobii gibi göz izleyici
-  gerekir).
+- Aynı ekrandaki iki pencere arasında ayrım yapmaya çalışır (bkz. yukarıdaki
+  "deneysel" bölüm) ama bu, webcam için monitör-arası ayrımdan doğası
+  gereği daha zor bir problem (tam hassas göz izleme için Tobii gibi özel
+  donanım gerekir) — tam güvenilir olmayabilir, özellikle pencereler tam
+  yarı yarıya bölünmemişse.
 - Tek monitörde çalışmaz, en az 2 monitör gerekir.
